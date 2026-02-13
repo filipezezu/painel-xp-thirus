@@ -15,8 +15,11 @@ export default function Home() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const timerRef = useRef(null);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (doScrape = false) => {
     try {
+      if (doScrape) {
+        await fetch('/api/scrape');
+      }
       const [statusRes, trackedRes] = await Promise.all([
         fetch('/api/status'),
         fetch('/api/tracked?filter=all')
@@ -43,19 +46,19 @@ export default function Home() {
     setLoading(false);
   };
 
-  // Auto-refresh
+  // Auto-refresh: primeira carga faz scrape, depois a cada 60s
   useEffect(() => {
-    fetchData();
+    fetchData(true);
   }, [fetchData]);
 
   useEffect(() => {
     if (!autoRefresh) return;
-    setCountdown(30);
+    setCountdown(60);
     const interval = setInterval(() => {
       setCountdown(prev => {
         if (prev <= 1) {
-          fetchData();
-          return 30;
+          fetchData(true);
+          return 60;
         }
         return prev - 1;
       });

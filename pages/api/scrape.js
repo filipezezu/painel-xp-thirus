@@ -2,20 +2,22 @@ import { getDb } from '../../lib/mongodb';
 import { fetchHighscores, fetchOnlinePlayers } from '../../lib/scraper';
 
 export default async function handler(req, res) {
-  // Proteger endpoint - só cron da Vercel ou request com secret
-  const authHeader = req.headers.authorization;
-  const cronSecret = process.env.CRON_SECRET;
-  
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    // Em dev local, permitir sem auth
-    if (process.env.NODE_ENV === 'production') {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-  }
-
   try {
     const db = await getDb();
     const now = Date.now();
+
+    // Rate limit: só permite scrape a cada 30 segundos
+    const stateDoc = await db.collection('state').findOne({ _id: 'latest' });
+    if (stateDoc?.lastScrapeAt && (now - stateDoc.lastScrapeAt) < 30000) {
+      return res.status(200).json({
+        success: true,
+        cached: true,
+        onlineCount: stateDoc.onlineCount || 0,
+        trackedCount: stateDoc.trackedCount || 0,
+        totalRanked: stateDoc.totalRanked || 0,
+        timestamp: stateDoc.lastScrapeAt
+      });
+    }
     
     // Buscar dados em paralelo
     const [highscores, onlinePlayers] = await Promise.all([
@@ -27,8 +29,8 @@ export default async function handler(req, res) {
     const rankedMap = new Map(highscores.map(p => [p.name, p]));
     
     // Buscar estado anterior (XP anterior)
-    const stateDoc = await db.collection('state').findOne({ _id: 'latest' });
-    const previousXP = stateDoc?.previousXP || {};
+    const prevState = await db.collection('state').findOne({ _id: 'latest' });
+    const previousXP = prevState?.previousXP || {};
     
     // Montar lista de jogadores rastreados
     const tracked = [];
@@ -112,6 +114,7 @@ export default async function handler(req, res) {
       {
         $set: {
           lastUpdate: new Date().toISOString(),
+          lastScrapeAt: now,
           onlineCount: onlinePlayers.length,
           trackedCount: tracked.filter(t => t.online).length,
           totalRanked: highscores.length,
