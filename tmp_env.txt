@@ -1,1 +1,0 @@
-mongodb+srv://filipefvrgs_db_user:0yTTLvNvciESb8Pm@cluster0.lbxtobp.mongodb.net/?appName=Cluster0
