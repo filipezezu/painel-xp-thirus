@@ -1,6 +1,10 @@
 import { getDb } from '../../lib/mongodb';
 import { fetchHighscores, fetchOnlinePlayers } from '../../lib/scraper';
 
+export const config = {
+  maxDuration: 60,
+};
+
 export default async function handler(req, res) {
   try {
     const db = await getDb();
